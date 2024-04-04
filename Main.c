@@ -1,54 +1,117 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "dirent.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define RED "\033[31m"
-#define RESET "\033[0m"
+void sync_folder(char *path1, char *path2);
+int copy_file(const char *filePath, const char *targetDir, const char *fileName);
 
-
-const int FILE_ID_T = 32768;
-const int DIRECTORY_ID_T =  16384;
-
-
-void sync_directories(char *f, char *f2);
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
-
     if (argc != 3)
     {
-        printf(RED "Invalid argument count!\n" RESET);
-        printf("Usage: format /path/to/folder/ another/path/to/folder\n");
+        printf("Please provide two paths as command line arguments.\n");
         return 1;
     }
-    sync_directories(argv[1], argv[2]);
+
+    char *path1 = argv[1];
+    char *path2 = argv[2];
+
+    sync_folder(path1, path2);
+    printf("completed");
+    return 0;
 }
 
-
-void sync_directories(char *path1, char *path2) {
-    DIR *dir1 = opendir(path1);
-    DIR *dir2 = opendir(path2);
-
-    if (!dir1 || !dir2) {
-        printf("Error: Unable to open directories.\n");
-        exit(1);
+void sync_folder(char *source, char *target)
+{
+    DIR *sourceDir = opendir(source);
+    if (!sourceDir)
+    {
+        printf("Reading directory failed at source %s", source);
+        return;
     }
-    struct dirent *en;
-    while((en=readdir(dir1))!=NULL){
-        struct dirent *rec;
-        if(DIRECTORY_ID_T==en->d_type){
-            if((abs(strcmp(en->d_name, "."))==0 || abs(strcmp(en->d_name,"..")) ==0))
+    DIR *targetDir = opendir(target);
+    if (!targetDir)
+    {
+        struct stat st = {0};
+        if (stat(target, &st) == -1)
+        {
+            mkdir(target);
+        }
+        targetDir = opendir(target);
+        if (targetDir)
+        {
+            // success
+        }
+        else
+        {
+            printf("Directory creation failed\n");
+            return;
+        }
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(sourceDir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        {
+            continue;
+        }
+        char source_path[600];
+        snprintf(source_path, sizeof(source_path), "%s/%s", source, entry->d_name);
+
+        char dest_path[600];
+        snprintf(dest_path, sizeof(dest_path), "%s/%s", target, entry->d_name);
+
+        struct stat source_stat, dest_stat;
+        if (stat(source_path, &source_stat) != 0)
+        {
+            perror("Unable to get file status");
+            continue;
+        }
+
+        if (S_ISDIR(entry->d_type))
+        {
+            sync_folder(source_path, dest_path);
+        }
+        else
+        {
+            if (stat(dest_path, &dest_stat) != 0)
             {
-                continue;
+                copy_file(source_path, target, entry->d_name);
             }
-            printf("dir: %s",en->d_name);
-        }
-        else if(FILE_ID_T == en->d_type){
-            printf("file: %d - %s\n",en->d_type,en->d_name);
         }
     }
-    closedir(dir1);
-    closedir(dir2);
+}
+
+int copy_file(const char *filePath, const char *targetDir, const char *fileName)
+{
+    FILE *source, *destination;
+    char destinationFileName[600], ch;
+
+    source = fopen(filePath, "r");
+    if (source == NULL)
+    {
+        printf("Unable to open source file.\n");
+        return -1;
+    }
+
+    snprintf(destinationFileName, sizeof(destinationFileName), "%s/%s", targetDir, fileName);
+
+    destination = fopen(destinationFileName, "w");
+    if (destination == NULL)
+    {
+        printf("Unable to create destination file.\n");
+        fclose(source);
+        return -1;
+    }
+
+    while ((ch = fgetc(source)) != EOF)
+    {
+        fputc(ch, destination);
+    }
+
+    fclose(source);
+    fclose(destination);
+    return 0;
 }

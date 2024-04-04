@@ -1,2 +1,2 @@
 make
-.\Sync.exe SyncFolderSource/ SyncFolderTarget/
+.\Sync.exe ExampleSource ExampleTarget
