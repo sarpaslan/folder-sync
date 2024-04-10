@@ -2,7 +2,7 @@
 #include "dirent.h"
 #include <sys/types.h>
 #include <sys/stat.h>
-
+#include <time.h>
 void sync_folder(char *path1, char *path2);
 int copy_file(const char *filePath, const char *targetDir, const char *fileName);
 
@@ -69,14 +69,25 @@ void sync_folder(char *source, char *target)
             perror("Unable to get file status");
             continue;
         }
-
         if (S_ISDIR(entry->d_type))
         {
             sync_folder(source_path, dest_path);
         }
         else
         {
-            if (stat(dest_path, &dest_stat) != 0)
+            int st = stat(dest_path, &dest_stat);
+            if (st == 0)
+            {
+                if (difftime(source_stat.st_mtime, dest_stat.st_mtime) > 0)
+                {
+                    copy_file(source_path, target, entry->d_name);
+                }
+                else
+                {
+                    copy_file(dest_path, source, entry->d_name);
+                }
+            }
+            else
             {
                 copy_file(source_path, target, entry->d_name);
             }
